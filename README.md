@@ -99,7 +99,8 @@ ____
 ![去掉stopwords前](https://raw.githubusercontent.com/CuiShaohua/MultiTaskLearning/master/reserve_stopwords.PNG)  
 ![去掉stopwords后](https://raw.githubusercontent.com/CuiShaohua/MultiTaskLearning/master/rid_of_stopwords.PNG)  
 
-### 2.2 最终的网络结构
+### 2.2 最终的网络结构  
+**贴一张最后的网络结构**  
 ```
 Model: "model_1"
 __________________________________________________________________________________________________
@@ -164,4 +165,105 @@ Total params: 60,269,520
 Trainable params: 60,269,520
 Non-trainable params: 0
 
+```
+### 3 关键代码解读  
+```Python  
+## 获取分词后的句子
+X_train = gram(X_train)
+X_valid = gram(X_valid)
+# 建立字典
+tokenizer = text.Tokenizer(num_words=max_feature)
+tokenizer.fit_on_texts(X_train + X_valid)
+# 建立索引
+X_train = tokenizer.texts_to_sequences(X_train)
+X_valid = tokenizer.texts_to_sequences(X_valid)
+# 截断和补充
+x_train = sequence.pad_sequences(X_train, maxlen=maxlen) # 一句话长为300单词
+x_valid = sequence.pad_sequences(X_valid, maxlen=maxlen)
+
+def get_coefs(word, *arr): return word, np.asarray(arr, dtype='float32')  # asarray不会copy新的副本
+
+# 建立预训练的词向量矩阵
+embeddings_index = dict(get_coefs(*o.rstrip().rsplit(' ')) for o in open(EMBEDDING_FILE, encoding='utf-8'))
+word_index = tokenizer.word_index
+nb_words = min(max_feature, len(word_index))
+embedding_matrix = np.zeros((nb_words, embed_size)) # 构建新的词向量矩阵
+for word, i in word_index.items():
+    if i >= max_feature: continue
+    embedding_vector = embeddings_index.get(word)
+    if embedding_vector is not None: embedding_matrix[i] = embedding_vector
+
+
+###  F1Score的评价指标
+class F1ScoreEvaluation(Callback):
+    def __init__(self, validation_data=(), interval=1):
+        super(Callback, self).__init__()
+
+        self.interval = interval
+        self.X_val, self.Y_val = validation_data  # valid data与train格式一致
+
+    def on_epoch_end(self, epoch, logs={}):
+        if epoch % self.interval == 0:
+            Y_pred = self.model.predict(self.X_val, verbose=0)
+            score = []
+            for i in range(20):
+                y_pred = np.argmax(Y_pred[i], axis=1)
+                y_val = np.argmax(self.Y_val[i], axis=1)
+                score.append(f1_score(y_val, y_pred, average='macro'))
+            F_score = np.average(score)
+            print("\n F1-SCORE - epoch: %d - score: %.6f \n" % (epoch + 1, F_score))
+
+def output_layer():
+    # 20个输出层的定义
+    avg_loss, avg_loss_weight = defaultdict(list), defaultdict(list)
+    for i in range(1, 21):
+        avg_loss['out_' + str(i)] = 'binary_crossentropy'
+        avg_loss_weight['out_' + str(i)] = float(1 / 20)  # 平均分布
+    return avg_loss, avg_loss_weight
+
+# 定义输出层
+avg_loss, avg_loss_weight = output_layer()
+
+# 定义主模型
+def get_model():
+    inp = Input(shape=(maxlen, ))
+    x = Embedding(max_feature, embed_size, weights=[embedding_matrix])(inp)
+    x = SpatialDropout1D(0.2)(x)
+    x = Bidirectional(LSTM(80, return_sequences=True))(x)
+    avg_pool = GlobalAveragePooling1D()(x)
+    max_pool = GlobalMaxPooling1D()(x)
+    conc = concatenate([avg_pool, max_pool])  # 按照axis=-1（行）串联起来输出张量
+    # 平行结构
+    name = locals()
+    out = list()
+    for i in range(1, 21):
+        name['out_' + str(i)] = Dense(4, activation='sigmoid', name='out_' + str(i))(conc)
+        out.append(name['out_' + str(i)])
+    model = Model(inputs=inp, outputs=out)
+    model.compile(loss=avg_loss,
+                  loss_weights=avg_loss_weight,
+                  optimizer='adam',
+                  metrics=['accuracy'])
+    return model
+
+def data_label():
+    #
+    Y_tra = list()
+    for i, j in train_label.items():
+        Y_tra.append(j)
+    #
+    Y_val = list()
+    for i, j in valid_label.items():
+        Y_val.append(j)
+    return Y_tra, Y_val
+
+
+F1Score = F1ScoreEvaluation(validation_data=(X_val, Y_val), interval=1)
+model = get_model()
+
+tensorboard = TensorBoard(log_dir='./log/best_weights.h5')
+checkpoint = ModelCheckpoint(filepath='./log/best_weights.h5', monitor="out_1_loss", save_best_only=True, verbose=0)
+
+callback_lists = [F1Score, tensorboard, checkpoint]
+hist = model.fit(X_tra, Y_tra, batch_size=batch_size, epochs=1, validation_data=(X_val, Y_val),callbacks=callback_lists, verbose=1)
 ```
