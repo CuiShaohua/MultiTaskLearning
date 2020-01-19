@@ -9,7 +9,7 @@
 &nbsp; &nbsp; 对于前两种方法，大多是SVM等机器学习的方法，不再赘述，详情可参考[中科大博士的一篇论文](http://cdmd.cnki.com.cn/Article/CDMD-10358-1018095965.htm)进行查找。本文基于深度学习的多任务学习方法，讲2种方法，一种是手动调参（loss_weight），任务学习个数不受限制，第二种方法则是重构loss_function，将同方差Uncertainty（可以理解为求使多个任务loss的乘积最小值的一组loss_weight参数求解），对于回归和分类2个任务学习的代码也展示在[这里]()。  
 
 ### 1 项目介绍
-
+#### 1.1 背景
 ```
 在自然语言处理中，有一个常见的问题就是对客户的评价进行分析。 这些用户评论中，包含了大量的有用信息，例如情感分析，或者相关事实描述。 例如:
 
@@ -19,7 +19,39 @@
 * 首先情感是正向的，除此之外我们还能够进行知道这个的几个事实描述：1. 性价比比较高； 2. 装修比较好； 3. 分量足。  
 * 这些信息是非常重要宝贵的，不论是对于公司进行商业分析或者要建立一个搜索引擎排序，这些信息都是重要的参考因素。 那么在这个时候，我们就需要进行文本的情感分类了  
 
+#### 1.2 项目内容
 
+```
+这个问题我们希望的是，输入一句话，输出是这句话对于以下6大类，20小类进行打标，对于每个小类而言，都会有<正面情感, 中性情感, 负面情感, 情感倾向未提及 >  这4个类别。
+
+>  位置: location  
+>> 交通是否便利(traffic convenience)  
+>> 距离商圈远近(distance from business district)  
+>> 是否容易寻找(easy to find)  
+> 服务(service)  
+>> 排队等候时间(wait time)  
+>> 服务人员态度(waiter’s attitude)  
+>> 是否容易停车(parking convenience)  
+>> 点菜/上菜速度(serving speed)  
+>  价格(price)  
+>> 价格水平(price level)  
+>> 性价比(cost-effective)  
+>> 折扣力度(discount)  
+>  环境(environment)  
+>> 装修情况(decoration)  
+>> 嘈杂情况(noise)  
+>> 就餐空间(space)  
+>> 卫生情况(cleaness)  
+>  菜品(dish)  
+>> 分量(portion)  
+>> 口感(taste)  
+>> 外观(look)  
+>> 推荐程度(recommendation)  
+>  其他(others)  
+>> 本次消费感受(overall experience)  
+>> 再次消费的意愿(willing to consume again)  
+
+```
 
 #### 2.4 最终的网络结构
 ```
