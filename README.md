@@ -267,3 +267,5 @@ checkpoint = ModelCheckpoint(filepath='./log/best_weights.h5', monitor="out_1_lo
 callback_lists = [F1Score, tensorboard, checkpoint]
 hist = model.fit(X_tra, Y_tra, batch_size=batch_size, epochs=1, validation_data=(X_val, Y_val),callbacks=callback_lists, verbose=1)
 ```
+有必要一提的是，评价模型好坏指标的建立。我们知道评价一个连续值的回归问题只能使用MSE的指标，但多分类的评价指标是有多个，ACC、Recall、F1Score、F2Score、AUC...，很明显使用ACC、Recall表示多分类容易导致信息遗漏，类间差别也容易被隐藏，F_Score和AUC应该对于本项目都可以，我们使用sklearn提供的f1_score进行再加工。  
+### 4 前端UI展示  
